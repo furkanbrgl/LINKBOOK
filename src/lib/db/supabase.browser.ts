@@ -1,7 +1,14 @@
-// TODO: Create Supabase browser client for client components
-// Uses anon key; relies on RLS
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-export function createSupabaseBrowser() {
-  // TODO: implement
-  return null;
+export function createBrowserSupabaseClient(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error(
+      "Missing Supabase env: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set"
+    );
+  }
+
+  return createClient(url, anonKey);
 }
