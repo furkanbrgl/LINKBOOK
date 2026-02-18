@@ -1,0 +1,2 @@
+-- TODO: Core schema
+-- shops, services, slots, bookings, owners, etc.

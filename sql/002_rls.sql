@@ -1,0 +1,2 @@
+-- TODO: Row Level Security policies
+-- Owner access, public read for availability, etc.

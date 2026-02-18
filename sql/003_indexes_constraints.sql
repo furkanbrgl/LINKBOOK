@@ -1,0 +1,2 @@
+-- TODO: Indexes and constraints
+-- Unique constraints, indexes for common queries
