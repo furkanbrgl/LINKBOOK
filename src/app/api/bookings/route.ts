@@ -164,6 +164,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  if (startAtDt.second !== 0 || startAtDt.millisecond !== 0 || startAtDt.minute % 15 !== 0) {
+    return NextResponse.json({ error: "Invalid slot start time" }, { status: 400 });
+  }
   const endAtDt = startAtDt.plus({ minutes: durationMinutes });
   const startAt = startAtDt.toISO();
   const endAt = endAtDt.toISO();

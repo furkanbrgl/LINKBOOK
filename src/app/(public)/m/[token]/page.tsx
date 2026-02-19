@@ -1,6 +1,6 @@
-import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.server";
-import { formatShopLocal } from "@/lib/time/tz";
-import { hashToken } from "@/lib/security/tokens";
+import { resolveManageToken } from "@/lib/security/resolveManageToken";
+import { formatShopLocal, getShopLocalDate } from "@/lib/time/tz";
+import { ManageActions } from "./ManageActions";
 
 export default async function ManageBookingPage({
   params,
@@ -9,65 +9,29 @@ export default async function ManageBookingPage({
 }) {
   const { token } = await params;
 
-  let tokenHash: string;
-  try {
-    tokenHash = hashToken(token);
-  } catch {
+  const resolved = await resolveManageToken(token);
+  if (!resolved) {
     return <InvalidLink />;
   }
 
-  const supabase = createServerSupabaseClientWithServiceRole();
-
-  const { data: tokenRow, error: tokenError } = await supabase
-    .from("manage_tokens")
-    .select("booking_id, expires_at, revoked_at")
-    .eq("token_hash", tokenHash)
-    .maybeSingle();
-
-  if (tokenError || !tokenRow || tokenRow.revoked_at != null) {
-    return <InvalidLink />;
-  }
-
-  const now = new Date().toISOString();
-  if (new Date(tokenRow.expires_at).toISOString() < now) {
-    return <InvalidLink />;
-  }
-
-  const bookingId = tokenRow.booking_id;
-
-  const { data: booking, error: bookingError } = await supabase
-    .from("bookings")
-    .select(
-      "id, start_at, end_at, status, shops(name, slug, timezone, phone), staff(name), services(name, duration_minutes), customers(name, phone_e164, email)"
-    )
-    .eq("id", bookingId)
-    .maybeSingle();
-
-  if (bookingError || !booking) {
-    return <InvalidLink />;
-  }
-
-  // Supabase types joined relations as arrays; at runtime they are single objects for this query
-  const shop = booking.shops as unknown as { name: string; slug: string; timezone: string; phone: string | null } | null;
-  const staff = booking.staff as unknown as { name: string } | null;
-  const service = booking.services as unknown as { name: string; duration_minutes: number } | null;
-  const customer = booking.customers as unknown as { name: string; phone_e164: string; email: string | null } | null;
-
-  const tz = shop?.timezone ?? "UTC";
+  const { booking, shop, staff, service, customer } = resolved;
+  const tz = shop.timezone;
   const dateLine = formatShopLocal(booking.start_at, tz, "EEE, d MMM yyyy");
   const timeLine = formatShopLocal(booking.start_at, tz, "HH:mm");
+  const initialDate = getShopLocalDate(booking.start_at, tz);
+  const minDate = getShopLocalDate(new Date().toISOString(), tz);
 
   return (
     <div className="min-h-screen bg-zinc-50 p-4 text-zinc-900 sm:p-6">
       <main className="mx-auto max-w-md rounded-xl bg-white p-6 shadow-sm">
         <h1 className="text-lg font-semibold text-zinc-800">
-          {shop?.name ?? "Shop"}
+          {shop.name}
         </h1>
 
         <div className="mt-4 space-y-3 text-sm">
           <p className="text-zinc-600">
-            <span className="font-medium text-zinc-800">{service?.name ?? "—"}</span>
-            {staff?.name != null && (
+            <span className="font-medium text-zinc-800">{service.name}</span>
+            {staff.name != null && (
               <> · {staff.name}</>
             )}
           </p>
@@ -78,9 +42,22 @@ export default async function ManageBookingPage({
             Status: <span className="font-medium capitalize">{booking.status.replace(/_/g, " ")}</span>
           </p>
           <p className="text-zinc-600">
-            {customer?.name ?? "—"}
+            {customer.name}
           </p>
         </div>
+
+        <ManageActions
+          token={token}
+          shopSlug={shop.slug}
+          tz={tz}
+          staffId={booking.staff_id}
+          serviceId={booking.service_id}
+          currentStatus={booking.status}
+          currentStartAt={booking.start_at}
+          serviceDurationMinutes={service.duration_minutes}
+          initialDate={initialDate}
+          minDate={minDate}
+        />
       </main>
     </div>
   );
