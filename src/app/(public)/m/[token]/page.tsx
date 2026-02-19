@@ -47,10 +47,11 @@ export default async function ManageBookingPage({
     return <InvalidLink />;
   }
 
-  const shop = booking.shops as { name: string; slug: string; timezone: string; phone: string | null } | null;
-  const staff = booking.staff as { name: string } | null;
-  const service = booking.services as { name: string; duration_minutes: number } | null;
-  const customer = booking.customers as { name: string; phone_e164: string; email: string | null } | null;
+  // Supabase types joined relations as arrays; at runtime they are single objects for this query
+  const shop = booking.shops as unknown as { name: string; slug: string; timezone: string; phone: string | null } | null;
+  const staff = booking.staff as unknown as { name: string } | null;
+  const service = booking.services as unknown as { name: string; duration_minutes: number } | null;
+  const customer = booking.customers as unknown as { name: string; phone_e164: string; email: string | null } | null;
 
   const tz = shop?.timezone ?? "UTC";
   const dateLine = formatShopLocal(booking.start_at, tz, "EEE, d MMM yyyy");
