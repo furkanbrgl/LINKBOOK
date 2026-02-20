@@ -4,6 +4,7 @@ import { BookingCreateSchema } from "@/lib/validation/schemas";
 import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.server";
 import { normalizePhoneE164 } from "@/lib/security/phone";
 import { generateManageToken, hashToken } from "@/lib/security/tokens";
+import { getClientIp, makeKey, rateLimit } from "@/lib/rate-limit/limiter";
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/bookings" });
@@ -30,6 +31,13 @@ export async function POST(request: Request) {
   // Silent bot drop: honeypot present and non-empty
   if (data.honeypot != null && data.honeypot !== "") {
     return NextResponse.json({ ok: true }, { status: 200 });
+  }
+
+  const ip = getClientIp(request);
+  const key = makeKey(["book", data.shopSlug, ip]);
+  const rl = await rateLimit(key, { name: "booking", limit: 10, window: "1 m" });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
   const supabase = createServerSupabaseClientWithServiceRole();

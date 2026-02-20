@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { resolveManageToken } from "@/lib/security/resolveManageToken";
 import { formatShopLocal, getShopLocalDate } from "@/lib/time/tz";
+import { getClientIpFromHeaders, makeKey, rateLimit } from "@/lib/rate-limit/limiter";
 import { ManageActions } from "./ManageActions";
 
 export default async function ManageBookingPage({
@@ -8,6 +10,22 @@ export default async function ManageBookingPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+
+  const ip = getClientIpFromHeaders(await headers());
+  const rl = await rateLimit(makeKey(["manage_view", ip]), {
+    name: "manage_view",
+    limit: 30,
+    window: "1 m",
+  });
+  if (!rl.ok) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+        <main className="text-center">
+          <p className="text-zinc-600">Too many attempts. Try again in a minute.</p>
+        </main>
+      </div>
+    );
+  }
 
   const resolved = await resolveManageToken(token);
   if (!resolved) {

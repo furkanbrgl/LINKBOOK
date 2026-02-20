@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:smoke": "node scripts/scenario-book-confirm-outbox.mjs && node scripts/scenario-manage-cancel-outbox.mjs && node scripts/scenario-cron-reminder-dedupe.mjs && node scripts/security-rate-limit-availability-test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
@@ -25,6 +26,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "pg": "^8.13.0",
     "@tailwindcss/postcss": "^4",
     "@types/luxon": "^3.7.1",
     "@types/node": "^20",

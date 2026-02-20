@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { DateTime } from "luxon";
 import { resolveManageToken } from "@/lib/security/resolveManageToken";
 import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.server";
+import { getClientIp, makeKey, rateLimit } from "@/lib/rate-limit/limiter";
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/manage/reschedule" });
@@ -26,6 +27,16 @@ export async function POST(request: Request) {
 
   if (typeof token !== "string" || token.length < 20) {
     return NextResponse.json({ error: "Invalid or expired link" }, { status: 404 });
+  }
+
+  const ip = getClientIp(request);
+  const rl = await rateLimit(makeKey(["manage_resched", ip]), {
+    name: "manage_resched",
+    limit: 10,
+    window: "1 m",
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
   if (typeof newStartAtRaw !== "string") {

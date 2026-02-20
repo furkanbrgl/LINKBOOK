@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.server";
 import { formatShopLocal, getShopLocalDate } from "@/lib/time/tz";
+import { getClientIp, makeKey, rateLimit } from "@/lib/rate-limit/limiter";
 
 const querySchema = z.object({
   shop: z.string().min(1),
@@ -27,6 +28,25 @@ export async function GET(request: Request) {
   }
 
   const { shop, staffId, serviceId, date } = parsed.data;
+
+  const ip = getClientIp(request);
+  const key = makeKey(["avail", shop, ip]);
+  const rl = await rateLimit(key, { name: "availability", limit: 60, window: "1 m" });
+  if (!rl.ok) {
+    const retryAfterSec = Math.max(0, Math.ceil((rl.reset - Date.now()) / 1000));
+    return NextResponse.json(
+      { error: "rate_limited" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSec),
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": String(rl.reset),
+        },
+      }
+    );
+  }
 
   // Using service role here (Option A) to avoid public RLS policies for v1; endpoint still validates by slug/staff/service and returns only slots.
   const supabase = createServerSupabaseClientWithServiceRole();
