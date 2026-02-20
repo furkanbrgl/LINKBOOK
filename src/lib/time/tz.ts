@@ -83,3 +83,18 @@ export function getUtcDayRangeFromShopLocalDate(
     endUtcIso: endLocal.toUTC().toISO({ suppressMilliseconds: true })!,
   };
 }
+
+/**
+ * Shop-local date (YYYY-MM-DD) to UTC range [start, end) for that day.
+ * Uses Luxon; returns ISO strings for use in DB range queries.
+ */
+export function getShopDayUtcRange(
+  dayLocalYYYYMMDD: string,
+  tz: string
+): { startUtcISO: string; endUtcISO: string } {
+  const { startUtcIso, endUtcIso } = getUtcDayRangeFromShopLocalDate(
+    dayLocalYYYYMMDD,
+    tz
+  );
+  return { startUtcISO: startUtcIso, endUtcISO: endUtcIso };
+}

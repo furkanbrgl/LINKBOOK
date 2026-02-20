@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.server";
-import { formatShopLocal } from "@/lib/time/tz";
+import { formatShopLocal, getShopLocalDate } from "@/lib/time/tz";
 
 const querySchema = z.object({
   shop: z.string().min(1),
@@ -109,10 +109,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ slots: [] });
   }
 
-  const result = slots.map((row) => ({
+  let result = slots.map((row) => ({
     startAt: row.slot_start_at,
     labelLocal: formatShopLocal(row.slot_start_at, tz, "HH:mm"),
   }));
+
+  const nowUtc = new Date().toISOString();
+  const todayLocal = getShopLocalDate(nowUtc, tz);
+  if (date === todayLocal) {
+    result = result.filter((s) => s.startAt > nowUtc);
+  }
 
   return NextResponse.json({ slots: result });
 }
