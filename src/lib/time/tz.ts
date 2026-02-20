@@ -67,6 +67,24 @@ export function getShopLocalDate(
 }
 
 /**
+ * Get shop-local date string (YYYY-MM-DD) for the day after the given UTC now.
+ */
+export function getShopLocalDateTomorrow(
+  utcNow: string | Date,
+  tz: string
+): string {
+  const dtLocal = toShopDateTime(utcNow, tz);
+  return dtLocal.plus({ days: 1 }).toFormat("yyyy-LL-dd");
+}
+
+/**
+ * Get shop-local time string (HH:mm) for a given UTC now (or Date).
+ */
+export function getShopLocalTime(utcNow: string | Date, tz: string): string {
+  return formatShopLocal(utcNow, tz, "HH:mm");
+}
+
+/**
  * Utility: convert a shop-local date (YYYY-MM-DD) to UTC range [start,end) for that day.
  * Useful for availability queries.
  */
