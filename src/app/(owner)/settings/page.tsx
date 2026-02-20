@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
 import { ShopSettingsForm } from "./ShopSettingsForm";
@@ -48,7 +49,27 @@ export default async function SettingsPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-xl font-semibold">Settings</h1>
+        <Link
+          href="/settings/hours"
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          Working hours
+        </Link>
+        <Link
+          href="/settings/staff"
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          Staff
+        </Link>
+        <Link
+          href="/settings/services"
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          Services
+        </Link>
+      </div>
 
       {!shop.is_active && (
         <div

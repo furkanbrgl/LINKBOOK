@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
 import { getShopLocalDate, getShopDayUtcRange, formatShopLocal } from "@/lib/time/tz";
 import { DayPicker } from "./DayPicker";
+import { LogoutButton } from "./LogoutButton";
 import { BookingActions, StaffActions } from "./OwnerActions";
 
 type StaffRow = { id: string; name: string; active: boolean };
@@ -169,12 +170,15 @@ export default async function DashboardPage({
     <div className="p-8">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <Link
-          href="/settings"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          Settings
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/settings"
+            className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            Settings
+          </Link>
+          <LogoutButton />
+        </div>
       </div>
       <div className="mt-4 flex items-center gap-4">
         <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
