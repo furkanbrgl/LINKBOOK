@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
+import { SettingsNav } from "../SettingsNav";
 import { StaffEditor } from "./StaffEditor";
 
 export default async function SettingsStaffPage() {
@@ -12,7 +12,10 @@ export default async function SettingsStaffPage() {
     return (
       <div className="p-8">
         <h1 className="text-xl font-semibold">Staff</h1>
-        <p className="mt-2 text-neutral-500">No shop assigned.</p>
+        <div className="mt-3">
+          <SettingsNav currentPath="/settings/staff" />
+        </div>
+        <p className="mt-3 text-neutral-500">No shop assigned.</p>
       </div>
     );
   }
@@ -34,16 +37,11 @@ export default async function SettingsStaffPage() {
 
   return (
     <div className="p-8">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-xl font-semibold">Staff</h1>
-        <Link
-          href="/settings"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          Back to settings
-        </Link>
+      <h1 className="text-xl font-semibold">Staff</h1>
+      <div className="mt-3">
+        <SettingsNav currentPath="/settings/staff" />
       </div>
-      <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+      <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
         Add and edit staff. Deactivate instead of deleting if they have bookings.
       </p>
       <StaffEditor staff={staff} />
