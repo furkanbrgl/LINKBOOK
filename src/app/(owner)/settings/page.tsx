@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
 import { SettingsNav } from "./SettingsNav";
@@ -49,7 +50,15 @@ export default async function SettingsPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-xl font-semibold">Settings</h1>
+        <Link
+          href="/onboarding"
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          Onboarding
+        </Link>
+      </div>
       <div className="mt-3">
         <SettingsNav currentPath="/settings" />
       </div>
