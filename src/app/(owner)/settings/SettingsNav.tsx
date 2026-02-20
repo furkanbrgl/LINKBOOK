@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const ITEMS = [
   { href: "/settings", label: "General" },
@@ -7,8 +10,9 @@ const ITEMS = [
   { href: "/settings/hours", label: "Working hours" },
 ] as const;
 
-export function SettingsNav({ currentPath }: { currentPath: string }) {
-  const path = currentPath.replace(/\/$/, "") || "/settings";
+export function SettingsNav() {
+  const pathname = usePathname();
+  const path = (pathname ?? "").replace(/\/$/, "") || "/settings";
 
   return (
     <nav

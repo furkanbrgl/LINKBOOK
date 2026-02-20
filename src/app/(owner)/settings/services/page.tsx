@@ -1,6 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
-import { SettingsNav } from "../SettingsNav";
 import { ServicesEditor } from "./ServicesEditor";
 
 export default async function SettingsServicesPage() {
@@ -9,15 +8,7 @@ export default async function SettingsServicesPage() {
 
   const activeShopId = owner.shopIds[0];
   if (!activeShopId) {
-    return (
-      <div className="p-8">
-        <h1 className="text-xl font-semibold">Services</h1>
-        <div className="mt-3">
-          <SettingsNav currentPath="/settings/services" />
-        </div>
-        <p className="mt-3 text-neutral-500">No shop assigned.</p>
-      </div>
-    );
+    return <p className="text-neutral-500">No shop assigned.</p>;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -36,15 +27,11 @@ export default async function SettingsServicesPage() {
   }[];
 
   return (
-    <div className="p-8">
-      <h1 className="text-xl font-semibold">Services</h1>
-      <div className="mt-3">
-        <SettingsNav currentPath="/settings/services" />
-      </div>
-      <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+    <>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">
         Add and edit services. Deactivate instead of deleting if they have bookings.
       </p>
       <ServicesEditor services={services} />
-    </div>
+    </>
   );
 }

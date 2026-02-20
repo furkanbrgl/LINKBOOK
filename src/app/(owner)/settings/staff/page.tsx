@@ -1,6 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
-import { SettingsNav } from "../SettingsNav";
 import { StaffEditor } from "./StaffEditor";
 
 export default async function SettingsStaffPage() {
@@ -9,15 +8,7 @@ export default async function SettingsStaffPage() {
 
   const activeShopId = owner.shopIds[0];
   if (!activeShopId) {
-    return (
-      <div className="p-8">
-        <h1 className="text-xl font-semibold">Staff</h1>
-        <div className="mt-3">
-          <SettingsNav currentPath="/settings/staff" />
-        </div>
-        <p className="mt-3 text-neutral-500">No shop assigned.</p>
-      </div>
-    );
+    return <p className="text-neutral-500">No shop assigned.</p>;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -36,15 +27,11 @@ export default async function SettingsStaffPage() {
   }[];
 
   return (
-    <div className="p-8">
-      <h1 className="text-xl font-semibold">Staff</h1>
-      <div className="mt-3">
-        <SettingsNav currentPath="/settings/staff" />
-      </div>
-      <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+    <>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">
         Add and edit staff. Deactivate instead of deleting if they have bookings.
       </p>
       <StaffEditor staff={staff} />
-    </div>
+    </>
   );
 }

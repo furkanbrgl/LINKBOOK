@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
-import { SettingsNav } from "./SettingsNav";
 import { ShopSettingsForm } from "./ShopSettingsForm";
 
 export default async function SettingsPage() {
@@ -10,12 +8,7 @@ export default async function SettingsPage() {
 
   const activeShopId = owner.shopIds[0];
   if (!activeShopId) {
-    return (
-      <div className="p-8">
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <p className="mt-2 text-neutral-500">No shop assigned.</p>
-      </div>
-    );
+    return <p className="text-neutral-500">No shop assigned.</p>;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -28,12 +21,7 @@ export default async function SettingsPage() {
     .single();
 
   if (shopError || !shop) {
-    return (
-      <div className="p-8">
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <p className="mt-2 text-neutral-500">Shop not found.</p>
-      </div>
-    );
+    return <p className="text-neutral-500">Shop not found.</p>;
   }
 
   const initialShop = {
@@ -49,23 +37,10 @@ export default async function SettingsPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <Link
-          href="/onboarding"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          Onboarding
-        </Link>
-      </div>
-      <div className="mt-3">
-        <SettingsNav currentPath="/settings" />
-      </div>
-
+    <>
       {!shop.is_active && (
         <div
-          className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
           role="alert"
         >
           This shop is inactive. The public booking page is disabled.
@@ -73,6 +48,6 @@ export default async function SettingsPage() {
       )}
 
       <ShopSettingsForm initialShop={initialShop} />
-    </div>
+    </>
   );
 }
