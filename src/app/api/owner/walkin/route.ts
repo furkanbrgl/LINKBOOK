@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { requireOwnerSingleShop } from "@/lib/auth/requireOwner";
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { normalizePhoneE164 } from "@/lib/security/phone";
+import { issueManageToken } from "@/lib/security/issueManageToken";
 
 const isoDatetime = z
   .string()
@@ -209,12 +210,16 @@ export async function POST(request: Request) {
   const bookingId = booking.id;
   const hasContact = (data.phone && data.phone.trim()) || (data.email && data.email.trim());
   if (hasContact) {
+    const manageToken = await issueManageToken(supabase, bookingId);
     await supabase.from("notification_outbox").insert({
       shop_id: shopId,
       booking_id: bookingId,
       event_type: "BOOKING_CONFIRMED",
       channel: "email",
-      payload_json: {},
+      payload_json: {
+        manageToken,
+        customerEmail: data.email?.trim() || null,
+      },
       idempotency_key: `booking:${bookingId}:confirmed_walkin`,
       status: "pending",
     });

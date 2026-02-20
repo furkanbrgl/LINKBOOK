@@ -9,6 +9,7 @@ import {
 import { renderEmail } from "@/lib/messaging/templates";
 import type { TemplateData } from "@/lib/messaging/templates";
 import { sendEmail, getEmailProviderName } from "@/lib/messaging/sendEmail";
+import { issueManageToken } from "@/lib/security/issueManageToken";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const BACKOFF_MINUTES = [5, 30, 2 * 60, 12 * 60] as const; // attempt 1..4 => minutes
@@ -200,6 +201,17 @@ if (booking) {
         continue;
       }
 
+      let manageToken = payload.manageToken as string | undefined;
+      if (bookingId && manageToken == null) {
+        manageToken = await issueManageToken(supabase, bookingId);
+        await supabase
+          .from("notification_outbox")
+          .update({
+            payload_json: { ...payload, manageToken },
+          })
+          .eq("id", row.id);
+      }
+
       const templateData: TemplateData = {
         shop: {
           name: shop.name,
@@ -224,7 +236,7 @@ if (booking) {
         customer: customer
           ? { name: customer.name ?? undefined }
           : undefined,
-        manageToken: (payload.manageToken as string | null) ?? null,
+        manageToken: manageToken ?? null,
       };
 
       const eventType = getTemplateEventType(row.event_type, payload);
