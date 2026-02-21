@@ -10,6 +10,7 @@
     "test:smoke": "node scripts/scenario-book-confirm-outbox.mjs && node scripts/scenario-manage-cancel-outbox.mjs && node scripts/scenario-cron-reminder-dedupe.mjs && node scripts/security-rate-limit-availability-test.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.96.0",
     "@upstash/ratelimit": "^2.0.8",

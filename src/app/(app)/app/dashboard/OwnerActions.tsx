@@ -3,10 +3,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { DateTime } from "luxon";
+import { MoreHorizontal } from "lucide-react";
+import { getShopLocalDate, toUTCFromShopLocal } from "@/lib/time/tz";
+
 import {
-  getShopLocalDate,
-  toUTCFromShopLocal,
-} from "@/lib/time/tz";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ——— Shared helpers (use existing lib/time/tz) ———
 
@@ -38,22 +50,20 @@ const BLOCK_DURATIONS = [15, 30, 45, 60, 90, 120];
 
 type SlotOption = { startAt: string; labelLocal: string };
 
-async function postJSON(
-  url: string,
-  body: Record<string, unknown>
-): Promise<void> {
+async function postJSON(url: string, body: Record<string, unknown>): Promise<void> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
   if (!res.ok) {
     let message = "Request failed.";
     try {
       const data = await res.json();
       if (typeof data?.error === "string") message = data.error;
     } catch {
-      // use default message
+      // ignore
     }
     if (res.status === 409) message = "Slot taken. Please pick another time.";
     if (res.status === 401) message = "Please log in again.";
@@ -69,7 +79,9 @@ async function fetchSlots(
   serviceId: string,
   date: string
 ): Promise<SlotOption[]> {
-  const url = `/api/availability?shop=${encodeURIComponent(shopSlug)}&staffId=${encodeURIComponent(staffId)}&serviceId=${encodeURIComponent(serviceId)}&date=${date}`;
+  const url = `/api/availability?shop=${encodeURIComponent(shopSlug)}&staffId=${encodeURIComponent(
+    staffId
+  )}&serviceId=${encodeURIComponent(serviceId)}&date=${date}`;
   const res = await fetch(url);
   const data = await res.json();
   if (!res.ok) return [];
@@ -124,11 +136,16 @@ export function BookingActions({
   selectedDay: string;
 }) {
   const router = useRouter();
+
   const [moveOpen, setMoveOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+
   const [moveDate, setMoveDate] = useState(selectedDay);
   const [moveSlotStartAt, setMoveSlotStartAt] = useState("");
+
   const [slots, setSlots] = useState<SlotOption[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -163,6 +180,7 @@ export function BookingActions({
     try {
       await postJSON("/api/owner/cancel", { bookingId });
       setSuccess(true);
+      setCancelConfirmOpen(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed.");
@@ -175,9 +193,7 @@ export function BookingActions({
     setMoveOpen(true);
     setError(null);
     setSuccess(false);
-    setMoveDate(
-      selectedDay || formatDateToShopLocal(new Date(), timezone)
-    );
+    setMoveDate(selectedDay || formatDateToShopLocal(new Date(), timezone));
     setMoveSlotStartAt("");
   };
 
@@ -202,35 +218,90 @@ export function BookingActions({
   };
 
   return (
-    <span className="ml-2 inline-flex flex-wrap items-center gap-1">
-      {success && (
-        <span className="text-xs text-green-600 dark:text-green-400">Saved.</span>
-      )}
-      {error && (
-        <span className="text-xs text-red-600 dark:text-red-400" role="alert">
-          {error}
-        </span>
-      )}
+    <span className="ml-2 inline-flex flex-wrap items-center gap-2">
+      {/* reserve a tiny space so layout doesn't jump */}
+      <span className="min-h-[1.25rem] text-xs">
+        {success && (
+          <span className="text-green-600 dark:text-green-400">Saved.</span>
+        )}
+        {error && (
+          <span className="text-red-600 dark:text-red-400" role="alert">
+            {error}
+          </span>
+        )}
+      </span>
+
       {!cancelled && (
         <>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={loading}
-            className="rounded border border-red-200 px-2 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleMoveOpen}
-            disabled={loading}
-            className="rounded border border-neutral-300 px-2 py-1 text-sm text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
-          >
-            Move
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                disabled={loading}
+                className="rounded border border-neutral-300 p-1 text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                aria-label="Booking actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  handleMoveOpen();
+                }}
+              >
+                Move…
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="text-red-700 focus:text-red-700 dark:text-red-400 dark:focus:text-red-400"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setCancelConfirmOpen(true);
+                }}
+              >
+                Cancel booking…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Cancel confirm dialog */}
+          <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+            <DialogContent className="sm:max-w-[420px]">
+              <DialogHeader>
+                <DialogTitle>Cancel booking?</DialogTitle>
+              </DialogHeader>
+
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                This will cancel the booking. You can’t undo it.
+              </p>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCancelConfirmOpen(false)}
+                  className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  disabled={loading}
+                >
+                  Back
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleCancel()}
+                  disabled={loading}
+                  className="rounded border border-red-200 bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50 dark:border-red-800 dark:bg-red-700 dark:hover:bg-red-800"
+                >
+                  Cancel booking
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
+
       {moveOpen && (
         <Modal title="Move booking" onClose={() => setMoveOpen(false)}>
           <form onSubmit={handleMoveSubmit} className="space-y-3">
@@ -245,16 +316,20 @@ export function BookingActions({
                 className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200"
               />
             </div>
+
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
                 Available slots
               </label>
+
               {slotsLoading && (
                 <p className="text-xs text-neutral-500">Loading slots…</p>
               )}
+
               {!slotsLoading && slots.length === 0 && moveDate && (
                 <p className="text-xs text-neutral-500">No available slots</p>
               )}
+
               {!slotsLoading && slots.length > 0 && (
                 <select
                   value={moveSlotStartAt}
@@ -270,15 +345,15 @@ export function BookingActions({
                 </select>
               )}
             </div>
+
             {error && (
               <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
             )}
+
             <div className="flex gap-2">
               <button
                 type="submit"
-                disabled={
-                  loading || slotsLoading || !moveSlotStartAt
-                }
+                disabled={loading || slotsLoading || !moveSlotStartAt}
                 className="rounded border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
               >
                 {loading ? "Saving…" : slotsLoading ? "Loading slots…" : "Save"}
@@ -688,5 +763,6 @@ export function StaffActions({
         </Modal>
       )}
     </span>
+    
   );
 }
