@@ -15,7 +15,7 @@ export default async function SettingsPage() {
   const { data: shop, error: shopError } = await supabase
     .from("shops")
     .select(
-      "id, name, slug, timezone, phone, address, reminder_next_day_enabled, reminder_next_day_send_time_local, is_active"
+      "id, name, slug, timezone, phone, address, reminder_next_day_enabled, reminder_next_day_send_time_local, is_active, industry_template, branding, template_overrides"
     )
     .eq("id", activeShopId)
     .single();
@@ -34,6 +34,9 @@ export default async function SettingsPage() {
     reminder_next_day_enabled: shop.reminder_next_day_enabled,
     reminder_next_day_send_time_local: shop.reminder_next_day_send_time_local,
     is_active: shop.is_active,
+    industry_template: shop.industry_template ?? "generic",
+    branding: shop.branding ?? {},
+    template_overrides: shop.template_overrides ?? null,
   };
 
   return (
