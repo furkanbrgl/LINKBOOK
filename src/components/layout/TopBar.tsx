@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function TopBar({
   onOpenMobileNav,
@@ -29,6 +35,21 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="default" size="sm">
+              + New
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href="/app/dashboard?new=walkin">Walk-in</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/app/dashboard?new=block">Block time</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button asChild variant="ghost" size="sm">
           <Link href="/app/onboarding">Onboarding</Link>
         </Button>

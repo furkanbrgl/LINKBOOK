@@ -218,17 +218,10 @@ export function BookingActions({
   };
 
   return (
-    <span className="ml-2 inline-flex flex-wrap items-center gap-2">
-      {/* reserve a tiny space so layout doesn't jump */}
+    <span className="ml-2 inline-flex flex-wrap items-center gap-1">
       <span className="min-h-[1.25rem] text-xs">
-        {success && (
-          <span className="text-green-600 dark:text-green-400">Saved.</span>
-        )}
-        {error && (
-          <span className="text-red-600 dark:text-red-400" role="alert">
-            {error}
-          </span>
-        )}
+        {success && <span className="text-green-600 dark:text-green-400">Saved.</span>}
+        {error && <span className="text-red-600 dark:text-red-400" role="alert">{error}</span>}
       </span>
 
       {!cancelled && (

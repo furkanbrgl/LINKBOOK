@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { DateTime } from "luxon";
 import { requireOwnerSingleShop } from "@/lib/auth/requireOwner";
-import { createServerSupabaseClient } from "@/lib/db/supabase.server";
+import {
+  createServerSupabaseClient,
+  createServerSupabaseClientWithServiceRole,
+} from "@/lib/db/supabase.server";
 import { normalizePhoneE164 } from "@/lib/security/phone";
 import { issueManageToken } from "@/lib/security/issueManageToken";
 
@@ -210,7 +213,8 @@ export async function POST(request: Request) {
   const bookingId = booking.id;
   const hasContact = (data.phone && data.phone.trim()) || (data.email && data.email.trim());
   if (hasContact) {
-    const manageToken = await issueManageToken(supabase, bookingId);
+    const serviceSupabase = createServerSupabaseClientWithServiceRole();
+    const manageToken = await issueManageToken(serviceSupabase, bookingId);
     await supabase.from("notification_outbox").insert({
       shop_id: shopId,
       booking_id: bookingId,

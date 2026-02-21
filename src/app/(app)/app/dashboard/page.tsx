@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { DateTime } from "luxon";
 import { createServerSupabaseClient } from "@/lib/db/supabase.server";
 import { requireOwner } from "@/lib/auth/requireOwner";
 import { getShopLocalDate, getShopDayUtcRange } from "@/lib/time/tz";
@@ -73,6 +75,10 @@ export default async function DashboardPage({
   const now = new Date().toISOString();
   const todayLocal = getShopLocalDate(now, tz);
   const selectedDay = params.day ?? todayLocal;
+  const dayDT = DateTime.fromFormat(selectedDay, "yyyy-MM-dd", { zone: tz });
+  const prevDay = dayDT.minus({ days: 1 }).toFormat("yyyy-MM-dd");
+  const nextDay = dayDT.plus({ days: 1 }).toFormat("yyyy-MM-dd");
+  const todayDay = todayLocal;
   const { startUtcISO, endUtcISO } = getShopDayUtcRange(selectedDay, tz);
 
   const [
@@ -190,12 +196,30 @@ export default async function DashboardPage({
 
   return (
     <div className="p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
             Day
           </label>
+          <Link
+            href={`/app/dashboard?day=${prevDay}`}
+            className="rounded border border-neutral-300 px-2 py-1 text-sm hover:bg-neutral-50 dark:border-neutral-600 dark:hover:bg-neutral-800"
+          >
+            Prev
+          </Link>
+          <Link
+            href={`/app/dashboard?day=${todayDay}`}
+            className="rounded border border-neutral-300 px-2 py-1 text-sm hover:bg-neutral-50 dark:border-neutral-600 dark:hover:bg-neutral-800"
+          >
+            Today
+          </Link>
+          <Link
+            href={`/app/dashboard?day=${nextDay}`}
+            className="rounded border border-neutral-300 px-2 py-1 text-sm hover:bg-neutral-50 dark:border-neutral-600 dark:hover:bg-neutral-800"
+          >
+            Next
+          </Link>
           <DayPicker day={selectedDay} />
         </div>
       </div>
