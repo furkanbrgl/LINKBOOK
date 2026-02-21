@@ -9,6 +9,10 @@ type Shop = { id: string; name: string; slug: string; timezone: string; phone: s
 type Service = { id: string; name: string; duration_minutes: number };
 type Staff = { id: string; name: string };
 type Slot = { startAt: string; labelLocal: string };
+
+
+
+const DEFAULT_VISIBLE_SLOTS = 16;
 type SuccessPayload = {
   shopSlug: string;
   startAt: string;
@@ -89,17 +93,18 @@ function SlotChip({
   accentColor?: string | null;
 }) {
   const selectedStyle = accentColor ? { borderColor: accentColor, backgroundColor: accentColor, color: "#fff" } : undefined;
+  const label = slot.labelLocal ?? (slot as { label?: string }).label ?? slot.startAt;
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-lg border-2 px-4 py-2 text-sm font-medium transition-colors",
+        "h-10 min-h-10 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors",
         selected ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
       )}
       style={selected ? selectedStyle : undefined}
     >
-      {slot.labelLocal}
+      {label}
     </button>
   );
 }
@@ -157,13 +162,18 @@ export function BookingWizard({
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessPayload | null>(null);
+  const [showAllSlots, setShowAllSlots] = useState(false);
 
   const accentColor = branding?.accentColor ?? null;
+
+  const visibleSlots = showAllSlots ? slots : slots.slice(0, DEFAULT_VISIBLE_SLOTS);
+  const hasMoreSlots = slots.length > DEFAULT_VISIBLE_SLOTS;
 
   const fetchSlots = useCallback(async () => {
     if (!selectedDate || !selectedServiceId || !selectedStaffId) {
       setSlots([]);
       setSelectedStartAt("");
+      setShowAllSlots(false);
       return;
     }
     setSlotsLoading(true);
@@ -190,6 +200,10 @@ export function BookingWizard({
   useEffect(() => {
     fetchSlots();
   }, [fetchSlots]);
+
+  useEffect(() => {
+    setShowAllSlots(false);
+  }, [selectedDate, selectedServiceId, selectedStaffId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,10 +237,16 @@ export function BookingWizard({
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setSubmitError(data.error ?? "Booking failed");
-        return;
-      }
+
+if (!res.ok) {
+  if (res.status === 409) {
+    setSubmitError("That time was just booked. Please pick another time.");
+    await fetchSlots(); // refresh slots so the taken one disappears
+    return;
+  }
+  setSubmitError(data.error ?? "Booking failed");
+  return;
+}
       const serviceName = services.find((s) => s.id === selectedServiceId)?.name ?? "";
       const staffName = staff.find((s) => s.id === selectedStaffId)?.name ?? "";
       setSuccess({
@@ -275,9 +295,9 @@ export function BookingWizard({
   const selectedStaff = staff.find((s) => s.id === selectedStaffId);
   const selectedSlot = slots.find((s) => s.startAt === selectedStartAt);
   const formattedDate =
-    selectedDate
-      ? DateTime.fromFormat(selectedDate, "yyyy-MM-dd").toFormat("EEE, d MMM")
-      : null;
+  selectedDate
+    ? DateTime.fromFormat(selectedDate, "yyyy-MM-dd", { zone: shop.timezone }).toFormat("EEE, d MMM")
+    : null;
   const formattedTime = selectedSlot?.labelLocal ?? null;
   const isFormComplete =
     selectedServiceId &&
@@ -303,7 +323,6 @@ export function BookingWizard({
                     selected={selectedServiceId === s.id}
                     onClick={() => {
                       setSelectedServiceId(s.id);
-                      setSlots([]);
                       setSelectedStartAt("");
                     }}
                     accentColor={accentColor}
@@ -321,7 +340,6 @@ export function BookingWizard({
                     selected={selectedStaffId === s.id}
                     onClick={() => {
                       setSelectedStaffId(s.id);
-                      setSlots([]);
                       setSelectedStartAt("");
                     }}
                     accentColor={accentColor}
@@ -345,9 +363,9 @@ export function BookingWizard({
             </StepCard>
 
             <StepCard title="4. Time">
-              {slotsLoading && (
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {[...Array(8)].map((_, i) => (
+              {slotsLoading && selectedDate && selectedServiceId && selectedStaffId && (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+                  {[...Array(12)].map((_, i) => (
                     <div
                       key={i}
                       className="h-10 animate-pulse rounded-lg bg-zinc-200"
@@ -359,23 +377,49 @@ export function BookingWizard({
                 <p className="text-sm text-red-600">{slotsError}</p>
               )}
               {!slotsLoading && !slotsError && selectedDate && selectedServiceId && selectedStaffId && slots.length === 0 && (
-                <p className="text-sm text-zinc-500">No slots available this day.</p>
+                <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/50 py-8 text-center text-sm text-zinc-500">
+                  No slots available this day. Try another date.
+                </p>
               )}
               {!slotsLoading && slots.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {slots.map((slot) => (
-                    <SlotChip
-                      key={slot.startAt}
-                      slot={slot}
-                      selected={selectedStartAt === slot.startAt}
-                      onClick={() => setSelectedStartAt(slot.startAt)}
-                      accentColor={accentColor}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div
+                    className={cn(
+                      "grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6",
+                      showAllSlots && "max-h-[280px] overflow-auto md:max-h-[320px]"
+                    )}
+                  >
+                    {visibleSlots.map((slot) => (
+                      <SlotChip
+                        key={slot.startAt}
+                        slot={slot}
+                        selected={selectedStartAt === slot.startAt}
+                        onClick={() => setSelectedStartAt(slot.startAt)}
+                        accentColor={accentColor}
+                      />
+                    ))}
+                  </div>
+                  {hasMoreSlots && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllSlots((prev) => !prev)}
+                        className="text-sm font-medium text-zinc-600 underline hover:text-zinc-900"
+                      >
+                        {showAllSlots
+                          ? "Show fewer times"
+                          : `Show more times (${slots.length - DEFAULT_VISIBLE_SLOTS} more)`}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </StepCard>
-
+            {(!selectedServiceId || !selectedStaffId || !selectedDate) && (
+  <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/50 py-6 text-center text-sm text-zinc-500">
+    Select a {template.labels.serviceLabel.toLowerCase()}, {template.labels.providerLabel.toLowerCase()}, and date to see available times.
+  </p>
+)}
             <StepCard title={`5. ${template.labels.customerLabel} details`}>
               <div className="space-y-4">
                 <div>
