@@ -21,15 +21,15 @@ export type OwnerOnboardingStatus = {
 };
 
 const ITEMS: { key: string; label: string; href: string }[] = [
-  { key: "slug", label: "Slug set", href: "/settings" },
-  { key: "timezone", label: "Timezone set", href: "/settings" },
-  { key: "phone", label: "Phone set", href: "/settings" },
-  { key: "staff", label: "At least 1 active staff", href: "/settings/staff" },
-  { key: "services", label: "At least 1 active service", href: "/settings/services" },
+  { key: "slug", label: "Slug set", href: "/app/settings" },
+  { key: "timezone", label: "Timezone set", href: "/app/settings" },
+  { key: "phone", label: "Phone set", href: "/app/settings" },
+  { key: "staff", label: "At least 1 active staff", href: "/app/settings/staff" },
+  { key: "services", label: "At least 1 active service", href: "/app/settings/services" },
   {
     key: "hours",
     label: "Working hours configured (for at least one active staff)",
-    href: "/settings/hours",
+    href: "/app/settings/hours",
   },
 ];
 

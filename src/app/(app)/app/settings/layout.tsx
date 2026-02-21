@@ -20,7 +20,7 @@ export default async function SettingsLayout({
                 Onboarding: {onboarding.done}/{onboarding.total}
               </span>
               <Link
-                href="/onboarding"
+                href="/app/onboarding"
                 className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
               >
                 Checklist

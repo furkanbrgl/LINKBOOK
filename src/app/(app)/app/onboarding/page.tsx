@@ -76,15 +76,15 @@ export default async function OnboardingPage() {
   const hoursOk = workingHoursForActiveStaff > 0;
 
   const items: ChecklistItem[] = [
-    { label: "Slug set", done: slugOk, fixHref: "/settings" },
-    { label: "Timezone set", done: timezoneOk, fixHref: "/settings" },
-    { label: "Phone set", done: phoneOk, fixHref: "/settings" },
-    { label: "At least 1 active staff", done: staffOk, fixHref: "/settings/staff" },
-    { label: "At least 1 active service", done: servicesOk, fixHref: "/settings/services" },
+    { label: "Slug set", done: slugOk, fixHref: "/app/settings" },
+    { label: "Timezone set", done: timezoneOk, fixHref: "/app/settings" },
+    { label: "Phone set", done: phoneOk, fixHref: "/app/settings" },
+    { label: "At least 1 active staff", done: staffOk, fixHref: "/app/settings/staff" },
+    { label: "At least 1 active service", done: servicesOk, fixHref: "/app/settings/services" },
     {
       label: "Working hours configured (for at least one active staff)",
       done: hoursOk,
-      fixHref: "/settings/hours",
+      fixHref: "/app/settings/hours",
     },
   ];
 

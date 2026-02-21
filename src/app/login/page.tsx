@@ -25,7 +25,7 @@ export default function LoginPage() {
         setError(signInError.message);
         return;
       }
-      router.replace("/dashboard");
+      router.replace("/app/dashboard");
     } finally {
       setLoading(false);
     }

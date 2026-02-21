@@ -4,15 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ITEMS = [
-  { href: "/settings", label: "General" },
-  { href: "/settings/staff", label: "Staff" },
-  { href: "/settings/services", label: "Services" },
-  { href: "/settings/hours", label: "Working hours" },
+  { href: "/app/settings", label: "General" },
+  { href: "/app/settings/staff", label: "Staff" },
+  { href: "/app/settings/services", label: "Services" },
+  { href: "/app/settings/hours", label: "Working hours" },
 ] as const;
 
 export function SettingsNav() {
   const pathname = usePathname();
-  const path = (pathname ?? "").replace(/\/$/, "") || "/settings";
+  const path = (pathname ?? "").replace(/\/$/, "") || "/app/settings";
 
   return (
     <nav
@@ -21,7 +21,7 @@ export function SettingsNav() {
     >
       {ITEMS.map(({ href, label }) => {
         const isActive =
-          path === href || (href === "/settings" && path === "/settings");
+          path === href || (href === "/app/settings" && path === "/app/settings");
         return (
           <Link
             key={href}
