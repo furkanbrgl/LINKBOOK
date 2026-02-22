@@ -32,37 +32,57 @@ export default async function ManageBookingPage({
     return <InvalidLink />;
   }
 
-  const { booking, shop, staff, service, customer } = resolved;
+  const { booking, shop, staff, service } = resolved;
   const tz = shop.timezone;
-  const dateLine = formatShopLocal(booking.start_at, tz, "EEE, d MMM yyyy");
-  const timeLine = formatShopLocal(booking.start_at, tz, "HH:mm");
+  const formattedWhen = formatShopLocal(booking.start_at, tz, "EEE, d MMM yyyy · HH:mm");
   const initialDate = getShopLocalDate(booking.start_at, tz);
   const minDate = getShopLocalDate(new Date().toISOString(), tz);
+  const isCancelled = booking.status === "cancelled_by_customer" || booking.status === "cancelled_by_shop";
+  const statusLabel = isCancelled ? "Cancelled" : "Confirmed";
 
   return (
     <div className="min-h-screen bg-zinc-50 p-4 text-zinc-900 sm:p-6">
-      <main className="mx-auto max-w-md rounded-xl bg-white p-6 shadow-sm">
-        <h1 className="text-lg font-semibold text-zinc-800">
-          {shop.name}
-        </h1>
+      <main className="mx-auto max-w-xl rounded-xl bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-zinc-800">Manage your booking</h1>
 
-        <div className="mt-4 space-y-3 text-sm">
-          <p className="text-zinc-600">
-            <span className="font-medium text-zinc-800">{service.name}</span>
-            {staff.name != null && (
-              <> · {staff.name}</>
-            )}
-          </p>
-          <p className="text-zinc-600">
-            {dateLine} at {timeLine}
-          </p>
-          <p className="text-zinc-600">
-            Status: <span className="font-medium capitalize">{booking.status.replace(/_/g, " ")}</span>
-          </p>
-          <p className="text-zinc-600">
-            {customer.name}
-          </p>
+        <span
+          className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${
+            isCancelled ? "bg-zinc-100 text-zinc-600" : "bg-green-100 text-green-800"
+          }`}
+        >
+          {statusLabel}
+        </span>
+
+        <div className="mt-4 space-y-2 divide-y divide-zinc-100">
+          <div className="flex justify-between gap-4 py-2 text-sm">
+            <span className="text-zinc-500">Shop</span>
+            <span className="font-medium text-zinc-900 text-right">{shop.name}</span>
+          </div>
+          <div className="flex justify-between gap-4 py-2 text-sm">
+            <span className="text-zinc-500">Service</span>
+            <span className="font-medium text-zinc-900 text-right">{service.name}</span>
+          </div>
+          <div className="flex justify-between gap-4 py-2 text-sm">
+            <span className="text-zinc-500">Provider</span>
+            <span className="font-medium text-zinc-900 text-right">{staff.name}</span>
+          </div>
+          <div className="flex justify-between gap-4 py-2 text-sm">
+            <span className="text-zinc-500">When</span>
+            <span className="font-medium text-zinc-900 text-right">{formattedWhen}</span>
+          </div>
+          <div className="flex justify-between gap-4 py-2 text-sm">
+            <span className="text-zinc-500">Duration</span>
+            <span className="font-medium text-zinc-900 text-right">{service.duration_minutes} min</span>
+          </div>
         </div>
+
+        {(shop.phone || shop.address) && (
+          <div className="mt-4 rounded-lg bg-zinc-50 p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact</div>
+            {shop.phone && <p className="mt-1 text-sm text-zinc-700">{shop.phone}</p>}
+            {shop.address && <p className="mt-1 text-sm text-zinc-700">{shop.address}</p>}
+          </div>
+        )}
 
         <ManageActions
           token={token}
@@ -85,9 +105,7 @@ function InvalidLink() {
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
       <main className="text-center">
-        <h1 className="text-lg font-semibold text-zinc-800">
-          Link expired or invalid
-        </h1>
+        <h1 className="text-lg font-semibold text-zinc-800">Booking not found</h1>
         <p className="mt-2 text-sm text-zinc-600">
           This link may have expired or already been used.
         </p>

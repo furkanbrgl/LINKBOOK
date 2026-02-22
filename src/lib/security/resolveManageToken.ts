@@ -8,7 +8,7 @@ import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.ser
 
 export type ResolvedManageToken = {
   booking: { id: string; start_at: string; end_at: string; status: string; shop_id: string; staff_id: string; service_id: string; customer_id: string };
-  shop: { id: string; name: string; slug: string; timezone: string; phone: string | null };
+  shop: { id: string; name: string; slug: string; timezone: string; phone: string | null; address: string | null };
   staff: { id: string; name: string };
   service: { id: string; name: string; duration_minutes: number };
   customer: { id: string; name: string; phone_e164: string; email: string | null };
@@ -56,7 +56,7 @@ export async function resolveManageToken(rawToken: string): Promise<ResolvedMana
   }
 
   const [shopRes, staffRes, serviceRes, customerRes] = await Promise.all([
-    supabase.from("shops").select("id, name, slug, timezone, phone").eq("id", booking.shop_id).maybeSingle(),
+    supabase.from("shops").select("id, name, slug, timezone, phone, address").eq("id", booking.shop_id).maybeSingle(),
     supabase.from("staff").select("id, name").eq("id", booking.staff_id).maybeSingle(),
     supabase.from("services").select("id, name, duration_minutes").eq("id", booking.service_id).maybeSingle(),
     supabase.from("customers").select("id, name, phone_e164, email").eq("id", booking.customer_id).maybeSingle(),
@@ -82,7 +82,7 @@ export async function resolveManageToken(rawToken: string): Promise<ResolvedMana
       service_id: booking.service_id,
       customer_id: booking.customer_id,
     },
-    shop: { id: shop.id, name: shop.name, slug: shop.slug, timezone: shop.timezone, phone: shop.phone },
+    shop: { id: shop.id, name: shop.name, slug: shop.slug, timezone: shop.timezone, phone: shop.phone, address: (shop as { address?: string | null }).address ?? null },
     staff: { id: staff.id, name: staff.name },
     service: { id: service.id, name: service.name, duration_minutes: service.duration_minutes },
     customer: { id: customer.id, name: customer.name, phone_e164: customer.phone_e164, email: customer.email },

@@ -10,7 +10,28 @@ type Service = { id: string; name: string; duration_minutes: number };
 type Staff = { id: string; name: string };
 type Slot = { startAt: string; labelLocal: string };
 
+function groupSlotsByHour(slots: Slot[]): { hour: string; slots: Slot[] }[] {
+  const map = new Map<string, Slot[]>();
 
+  for (const s of slots) {
+    const label = s.labelLocal ?? "";
+    const hour = label && label.includes(":") ? `${label.slice(0, 2)}:00` : "—";
+    const arr = map.get(hour) ?? [];
+    arr.push(s);
+    map.set(hour, arr);
+  }
+
+  return Array.from(map.entries())
+    .sort((a, b) => {
+      const aStart = a[1][0]?.startAt ?? "";
+      const bStart = b[1][0]?.startAt ?? "";
+      return aStart.localeCompare(bStart);
+    })
+    .map(([hour, list]) => ({
+      hour,
+      slots: list.sort((x, y) => x.startAt.localeCompare(y.startAt)),
+    }));
+}
 
 const DEFAULT_VISIBLE_SLOTS = 16;
 type SuccessPayload = {
@@ -21,7 +42,48 @@ type SuccessPayload = {
   timezone: string;
   serviceName: string;
   staffName: string;
+  durationMinutes: number;
 };
+
+function downloadIcs(opts: {
+  title: string;
+  startUtcIso: string;
+  endUtcIso: string;
+  description: string;
+  location?: string;
+}) {
+  const formatIcsUtc = (iso: string) => {
+    const d = new Date(iso);
+    return d.toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  };
+  const dtstamp = formatIcsUtc(new Date().toISOString());
+  const dtstart = formatIcsUtc(opts.startUtcIso);
+  const dtend = formatIcsUtc(opts.endUtcIso);
+  const loc = opts.location ? `LOCATION:${opts.location.replace(/\n/g, "\\n")}\r\n` : "";
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Linkbook//Booking//EN",
+    "BEGIN:VEVENT",
+    `DTSTAMP:${dtstamp}`,
+    `DTSTART:${dtstart}`,
+    `DTEND:${dtend}`,
+    `SUMMARY:${opts.title.replace(/\n/g, "\\n")}`,
+    `DESCRIPTION:${opts.description.replace(/\n/g, "\\n").replace(/,/g, "\\,")}`,
+    loc,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ]
+    .filter(Boolean)
+    .join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "booking.ics";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // Helper components
 function ServiceCard({
@@ -163,11 +225,13 @@ export function BookingWizard({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessPayload | null>(null);
   const [showAllSlots, setShowAllSlots] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const accentColor = branding?.accentColor ?? null;
 
   const visibleSlots = showAllSlots ? slots : slots.slice(0, DEFAULT_VISIBLE_SLOTS);
   const hasMoreSlots = slots.length > DEFAULT_VISIBLE_SLOTS;
+  const groupedSlots = groupSlotsByHour(visibleSlots);
 
   const fetchSlots = useCallback(async () => {
     if (!selectedDate || !selectedServiceId || !selectedStaffId) {
@@ -247,7 +311,9 @@ if (!res.ok) {
   setSubmitError(data.error ?? "Booking failed");
   return;
 }
-      const serviceName = services.find((s) => s.id === selectedServiceId)?.name ?? "";
+      const selectedService = services.find((s) => s.id === selectedServiceId);
+      const serviceName = selectedService?.name ?? "";
+      const durationMinutes = selectedService?.duration_minutes ?? 30;
       const staffName =
         (typeof data.staffName === "string" && data.staffName.trim()
           ? data.staffName
@@ -262,6 +328,7 @@ if (!res.ok) {
         timezone: shop.timezone,
         serviceName,
         staffName,
+        durationMinutes,
       });
     } catch {
       setSubmitError("Something went wrong. Please try again.");
@@ -277,20 +344,97 @@ if (!res.ok) {
       typeof window !== "undefined"
         ? `${window.location.origin}/m/${success.manageToken}`
         : `/m/${success.manageToken}`;
+    const rebookUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/${success.shopSlug}`
+        : `/${success.shopSlug}`;
+    const endAtIso = DateTime.fromISO(success.startAt, { zone: "utc" })
+      .plus({ minutes: success.durationMinutes })
+      .toISO();
+
+    const handleCopy = async () => {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(manageUrl);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }
+      } catch {
+        /* fallback: link is shown and user can select manually */
+      }
+    };
+
+    const handleAddToCalendar = () => {
+      downloadIcs({
+        title: `${success.shopName} — ${success.serviceName}`,
+        startUtcIso: success.startAt,
+        endUtcIso: endAtIso ?? success.startAt,
+        description: `Manage: ${manageUrl}\nRebook: ${rebookUrl}`,
+      });
+    };
+
+    const providerLabel = success.staffName?.trim() ? success.staffName : "No preference";
+
     return (
-      <div className="mx-auto max-w-2xl p-4 sm:p-6">
+      <div className="mx-auto max-w-xl p-4 sm:p-6">
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-800">Booking confirmed</h2>
-          <p className="mt-2 text-zinc-600">{success.shopName}</p>
-          <p className="text-zinc-600">{success.serviceName} · {success.staffName}</p>
-          <p className="mt-2 font-medium text-zinc-800">{formattedDateTime}</p>
-          <p className="mt-4 text-sm text-zinc-600">Manage your booking:</p>
-          <a
-            href={manageUrl}
-            className="mt-1 block break-all text-sm font-medium text-blue-600 underline"
-          >
-            {manageUrl}
-          </a>
+
+          <div className="mt-4 space-y-2 divide-y divide-zinc-100">
+            <div className="flex justify-between gap-4 py-2 text-sm">
+              <span className="text-zinc-500">Shop</span>
+              <span className="font-medium text-zinc-900 text-right">{success.shopName}</span>
+            </div>
+            <div className="flex justify-between gap-4 py-2 text-sm">
+              <span className="text-zinc-500">Service</span>
+              <span className="font-medium text-zinc-900 text-right">{success.serviceName}</span>
+            </div>
+            <div className="flex justify-between gap-4 py-2 text-sm">
+              <span className="text-zinc-500">Provider</span>
+              <span className="font-medium text-zinc-900 text-right">{providerLabel}</span>
+            </div>
+            <div className="flex justify-between gap-4 py-2 text-sm">
+              <span className="text-zinc-500">When</span>
+              <span className="font-medium text-zinc-900 text-right">{formattedDateTime}</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="rounded-lg border-2 border-zinc-800 bg-zinc-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700"
+            >
+              {copied ? "Copied!" : "Copy manage link"}
+            </button>
+            <button
+              type="button"
+              onClick={handleAddToCalendar}
+              className="rounded-lg border-2 border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+            >
+              Add to calendar
+            </button>
+            <a
+              href={`/${success.shopSlug}`}
+              className="rounded-lg border-2 border-zinc-200 bg-white px-4 py-2.5 text-center text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+            >
+              Book another time
+            </a>
+          </div>
+
+          <p className="mt-3 text-xs text-zinc-500">
+            Need to reschedule or cancel? Use your manage link.
+          </p>
+
+          <div className="mt-3 flex justify-between gap-4 border-t border-zinc-100 py-3 text-sm">
+            <span className="shrink-0 text-zinc-500">Manage link</span>
+            <a
+              href={manageUrl}
+              className="break-all text-right text-blue-600 underline hover:text-blue-700"
+            >
+              {manageUrl}
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -397,21 +541,25 @@ if (!res.ok) {
               )}
               {!slotsLoading && slots.length > 0 && (
                 <>
-                  <div
-                    className={cn(
-                      "grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6",
-                      showAllSlots && "max-h-[280px] overflow-auto md:max-h-[320px]"
-                    )}
-                  >
-                    {visibleSlots.map((slot) => (
-                      <SlotChip
-                        key={slot.startAt}
-                        slot={slot}
-                        selected={selectedStartAt === slot.startAt}
-                        onClick={() => setSelectedStartAt(slot.startAt)}
-                        accentColor={accentColor}
-                      />
-                    ))}
+                  <div className={cn(showAllSlots && "max-h-[340px] overflow-auto pr-1")}>
+                    <div className="space-y-4">
+                      {groupedSlots.map((g) => (
+                        <div key={g.hour}>
+                          <div className="mb-2 text-xs font-semibold text-zinc-500">{g.hour}</div>
+                          <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+                            {g.slots.map((slot) => (
+                              <SlotChip
+                                key={slot.startAt}
+                                slot={slot}
+                                selected={selectedStartAt === slot.startAt}
+                                onClick={() => setSelectedStartAt(slot.startAt)}
+                                accentColor={accentColor}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   {hasMoreSlots && (
                     <div className="mt-3">
