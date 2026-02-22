@@ -5,6 +5,7 @@ import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.ser
 import { normalizePhoneE164 } from "@/lib/security/phone";
 import { generateManageToken, hashToken } from "@/lib/security/tokens";
 import { getClientIp, makeKey, rateLimit } from "@/lib/rate-limit/limiter";
+import { getAppBaseUrl } from "@/lib/messaging/renderEmail";
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/bookings" });
@@ -267,6 +268,7 @@ export async function POST(request: Request) {
   }
 
   // 10) Insert notification_outbox
+  const baseUrl = getAppBaseUrl();
   const payload = {
     shopName: shop.name,
     shopSlug: data.shopSlug,
@@ -278,6 +280,10 @@ export async function POST(request: Request) {
     customerName: data.name,
     customerPhoneE164: phoneE164,
     customerEmail: data.email ?? null,
+    toEmail: data.email ?? null,
+    rebookUrl: `${baseUrl}/${data.shopSlug}`,
+    manageToken: rawToken,
+    manageUrl: `${baseUrl}/m/${rawToken}`,
   };
 
   const { error: outboxErr } = await supabase.from("notification_outbox").insert({

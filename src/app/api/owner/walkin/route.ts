@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/supabase.server";
 import { normalizePhoneE164 } from "@/lib/security/phone";
 import { issueManageToken } from "@/lib/security/issueManageToken";
+import { getAppBaseUrl } from "@/lib/messaging/renderEmail";
 
 const isoDatetime = z
   .string()
@@ -215,15 +216,34 @@ export async function POST(request: Request) {
   if (hasContact) {
     const serviceSupabase = createServerSupabaseClientWithServiceRole();
     const manageToken = await issueManageToken(serviceSupabase, bookingId);
+    const baseUrl = getAppBaseUrl();
+    const { data: shopForOutbox } = await supabase
+      .from("shops")
+      .select("name, slug, timezone")
+      .eq("id", shopId)
+      .maybeSingle();
+    const customerEmail = data.email?.trim() || null;
+    const payload_json = {
+      shopName: shopForOutbox?.name ?? "Shop",
+      shopSlug: shopForOutbox?.slug ?? "",
+      timezone: shopForOutbox?.timezone ?? "UTC",
+      staffName: staffRow.name,
+      serviceName: serviceRow.name,
+      startAt: booking.start_at,
+      endAt: booking.end_at,
+      customerName: data.name?.trim() || "Walk-in",
+      customerEmail,
+      toEmail: customerEmail,
+      manageToken,
+      manageUrl: `${baseUrl}/m/${manageToken}`,
+      rebookUrl: shopForOutbox?.slug ? `${baseUrl}/${shopForOutbox.slug}` : null,
+    };
     await supabase.from("notification_outbox").insert({
       shop_id: shopId,
       booking_id: bookingId,
       event_type: "BOOKING_CONFIRMED",
       channel: "email",
-      payload_json: {
-        manageToken,
-        customerEmail: data.email?.trim() || null,
-      },
+      payload_json,
       idempotency_key: `booking:${bookingId}:confirmed_walkin`,
       status: "pending",
     });

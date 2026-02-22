@@ -6,8 +6,8 @@ import {
   getShopLocalTime,
   getShopDayUtcRange,
 } from "@/lib/time/tz";
-import { renderEmail } from "@/lib/messaging/templates";
-import type { TemplateData } from "@/lib/messaging/templates";
+import { renderEmail, getAppBaseUrl } from "@/lib/messaging/renderEmail";
+import { getTemplateForShop } from "@/lib/templates/getTemplateForShop";
 import { sendEmail, getEmailProviderName } from "@/lib/messaging/sendEmail";
 import { issueManageToken } from "@/lib/security/issueManageToken";
 
@@ -116,6 +116,7 @@ export async function POST(request: Request) {
   let processed = 0;
   let sent = 0;
   let failed = 0;
+  const appBaseUrl = getAppBaseUrl();
 
   if (pending?.length) {
     for (const row of pending) {
@@ -123,55 +124,81 @@ export async function POST(request: Request) {
 
       const shopId = row.shop_id;
       const bookingId = row.booking_id;
-      const payload = (row.payload_json ?? {}) as Record<string, unknown>;
+      let payload = (row.payload_json ?? {}) as Record<string, unknown>;
 
-// First fetch shop + booking
-const [{ data: shop }, { data: booking }] = await Promise.all([
-  supabase
-    .from("shops")
-    .select("name, slug, timezone, phone, address")
-    .eq("id", shopId)
-    .maybeSingle(),
-  supabase
-    .from("bookings")
-    .select("id, start_at, end_at, status, staff_id, service_id, customer_id")
-    .eq("id", bookingId)
-    .maybeSingle(),
-]);
+      // Fetch shop with template fields
+      const { data: shop } = await supabase
+        .from("shops")
+        .select("name, slug, timezone, phone, address, industry_template, branding, template_overrides")
+        .eq("id", shopId)
+        .maybeSingle();
 
-let staff: { name: string } | null = null;
-let service: { name: string; duration_minutes: number } | null = null;
-let customer: { name: string | null; email: string | null } | null = null;
+      if (!shop) {
+        await supabase
+          .from("notification_outbox")
+          .update({
+            status: "failed",
+            last_error: "Shop not found",
+            attempt_count: row.attempt_count + 1,
+            next_attempt_at: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+        failed++;
+        continue;
+      }
 
-if (booking) {
-  const results = await Promise.all([
-    supabase
-      .from("staff")
-      .select("name")
-      .eq("id", booking.staff_id)
-      .maybeSingle(),
-    supabase
-      .from("services")
-      .select("name, duration_minutes")
-      .eq("id", booking.service_id)
-      .maybeSingle(),
-    supabase
-      .from("customers")
-      .select("name, email")
-      .eq("id", booking.customer_id)
-      .maybeSingle(),
-  ]);
+      const { template, branding } = getTemplateForShop(shop);
 
-  staff = results[0].data ?? null;
-  service = results[1].data ?? null;
-  customer = results[2].data ?? null;
-}
+      // Fetch booking, staff, service, customer to enrich payload for REMINDER etc.
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("id, start_at, end_at, status, staff_id, service_id, customer_id")
+        .eq("id", bookingId)
+        .maybeSingle();
 
+      let staff: { name: string } | null = null;
+      let service: { name: string; duration_minutes?: number } | null = null;
+      let customer: { name: string | null; email: string | null } | null = null;
 
-      const recipient =
-        (payload.customerEmail as string | null | undefined) ??
-        (customer as { email?: string | null } | null)?.email ??
-        null;
+      if (booking) {
+        const [staffRes, serviceRes, customerRes] = await Promise.all([
+          supabase.from("staff").select("name").eq("id", booking.staff_id).maybeSingle(),
+          supabase.from("services").select("name, duration_minutes").eq("id", booking.service_id).maybeSingle(),
+          supabase.from("customers").select("name, email").eq("id", booking.customer_id).maybeSingle(),
+        ]);
+        staff = staffRes.data ?? null;
+        service = serviceRes.data ?? null;
+        customer = customerRes.data ?? null;
+
+        payload = {
+          ...payload,
+          shopName: payload.shopName ?? shop.name,
+          shopSlug: payload.shopSlug ?? shop.slug,
+          timezone: payload.timezone ?? shop.timezone,
+          startAt: payload.startAt ?? booking.start_at,
+          endAt: payload.endAt ?? booking.end_at,
+          staffName: payload.staffName ?? staff?.name,
+          serviceName: payload.serviceName ?? service?.name,
+          customerName: payload.customerName ?? customer?.name,
+          toEmail: payload.toEmail ?? payload.customerEmail ?? customer?.email,
+          customerEmail: payload.customerEmail ?? customer?.email,
+        };
+      }
+
+      let manageToken = payload.manageToken as string | undefined;
+      if (bookingId && manageToken == null) {
+        manageToken = await issueManageToken(supabase, bookingId);
+        payload = { ...payload, manageToken };
+        await supabase
+          .from("notification_outbox")
+          .update({ payload_json: payload })
+          .eq("id", row.id);
+      }
+
+      const eventType = getTemplateEventType(row.event_type, payload);
+      const rendered = renderEmail(eventType, payload, template, branding, appBaseUrl);
+
+      const recipient = rendered.to ?? (payload.toEmail as string) ?? (payload.customerEmail as string) ?? (customer as { email?: string | null } | null)?.email ?? null;
 
       if (!recipient || recipient.trim() === "") {
         await supabase
@@ -186,61 +213,6 @@ if (booking) {
         failed++;
         continue;
       }
-
-      if (!shop || !booking) {
-        await supabase
-          .from("notification_outbox")
-          .update({
-            status: "failed",
-            last_error: "Shop or booking not found",
-            attempt_count: row.attempt_count + 1,
-            next_attempt_at: new Date().toISOString(),
-          })
-          .eq("id", row.id);
-        failed++;
-        continue;
-      }
-
-      let manageToken = payload.manageToken as string | undefined;
-      if (bookingId && manageToken == null) {
-        manageToken = await issueManageToken(supabase, bookingId);
-        await supabase
-          .from("notification_outbox")
-          .update({
-            payload_json: { ...payload, manageToken },
-          })
-          .eq("id", row.id);
-      }
-
-      const templateData: TemplateData = {
-        shop: {
-          name: shop.name,
-          slug: shop.slug,
-          timezone: shop.timezone,
-          phone: shop.phone ?? undefined,
-          address: shop.address ?? undefined,
-        },
-        booking: {
-          id: booking.id,
-          start_at: booking.start_at,
-          end_at: booking.end_at,
-          status: booking.status,
-        },
-        staff: staff ? { name: staff.name } : undefined,
-        service: service
-          ? {
-              name: service.name,
-              duration_minutes: service.duration_minutes,
-            }
-          : undefined,
-        customer: customer
-          ? { name: customer.name ?? undefined }
-          : undefined,
-        manageToken: manageToken ?? null,
-      };
-
-      const eventType = getTemplateEventType(row.event_type, payload);
-      const rendered = renderEmail(eventType, templateData);
 
       try {
         await sendEmail({
