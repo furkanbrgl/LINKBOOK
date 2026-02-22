@@ -245,7 +245,7 @@ export async function POST(request: Request) {
 
   const supabase = await createServerSupabaseClient();
 
-  let brandingMerge: Record<string, unknown> | undefined;
+  let brandingMerge: Record<string, unknown> | null | undefined;
   if (data.reset_branding === true) {
     brandingMerge = null;
   } else if (data.branding != null && Object.keys(data.branding).length > 0) {

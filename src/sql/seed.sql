@@ -2,12 +2,12 @@
 -- Demo data: 1 shop + 2 staff + 3 services + working hours
 
 insert into public.shops (name, slug, timezone, phone, address, industry_template)
-values ('Demo Barber', 'temp-barber', 'Europe/Istanbul', '+905551112233', 'Istanbul', 'barber')
+values ('Demo Barber', 'slim-barber', 'Europe/Istanbul', '+905551112233', 'Istanbul', 'barber')
 on conflict (slug) do nothing;
 
 -- Grab shop id
 with s as (
-  select id as shop_id from public.shops where slug = 'temp-barber'
+  select id as shop_id from public.shops where slug = 'slim-barber'
 ),
 st as (
   insert into public.staff (shop_id, name)

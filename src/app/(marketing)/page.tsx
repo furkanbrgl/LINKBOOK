@@ -24,7 +24,7 @@ export default function MarketingPage() {
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/temp-barber">Demo</Link>
+              <Link href="/slim-barber">Demo</Link>
             </Button>
             <Button size="sm" asChild>
               <Link href="/login">Log in</Link>
@@ -49,7 +49,7 @@ export default function MarketingPage() {
                 <Link href="/login">Log in</Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
-                <Link href="/temp-barber">View demo</Link>
+                <Link href="/slim-barber">View demo</Link>
               </Button>
             </div>
             <p className="mt-6 text-sm text-neutral-500 dark:text-neutral-500">
