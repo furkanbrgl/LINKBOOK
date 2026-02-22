@@ -248,7 +248,12 @@ if (!res.ok) {
   return;
 }
       const serviceName = services.find((s) => s.id === selectedServiceId)?.name ?? "";
-      const staffName = staff.find((s) => s.id === selectedStaffId)?.name ?? "";
+      const staffName =
+        (typeof data.staffName === "string" && data.staffName.trim()
+          ? data.staffName
+          : null) ??
+        staff.find((s) => s.id === selectedStaffId)?.name ??
+        "";
       setSuccess({
         shopSlug: data.shopSlug,
         startAt: data.startAt,
@@ -333,6 +338,15 @@ if (!res.ok) {
 
             <StepCard title={`2. ${template.labels.providerLabel}`}>
               <div className="flex flex-wrap gap-2">
+                <ProviderChip
+                  staff={{ id: "any", name: "No preference" }}
+                  selected={selectedStaffId === "any"}
+                  onClick={() => {
+                    setSelectedStaffId("any");
+                    setSelectedStartAt("");
+                  }}
+                  accentColor={accentColor}
+                />
                 {staff.map((s) => (
                   <ProviderChip
                     key={s.id}

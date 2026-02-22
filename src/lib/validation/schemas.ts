@@ -21,7 +21,7 @@ const isoDatetime = z.string().refine(
 export const BookingCreateSchema = z.object({
   shopSlug: z.string().min(1),
   serviceId: z.string().uuid(),
-  staffId: z.string().uuid(),
+  staffId: z.union([z.literal("any"), z.string().uuid()]),
   startAt: isoDatetime,
   name: z.string().min(2).max(80),
   phone: z.string().min(6).max(32),

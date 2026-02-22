@@ -63,26 +63,43 @@ export async function POST(request: Request) {
 
   const shopId = shop.id;
 
-  // 2) Validate staff belongs to shop and is active
-  const { data: staffRow, error: staffError } = await supabase
-    .from("staff")
-    .select("id, name")
-    .eq("id", data.staffId)
-    .eq("shop_id", shopId)
-    .eq("active", true)
-    .maybeSingle();
-
-  if (staffError) {
-    return NextResponse.json(
-      { error: staffError.message ?? "Failed to fetch staff" },
-      { status: 500 }
-    );
-  }
-  if (!staffRow) {
-    return NextResponse.json(
-      { error: "Staff not found or inactive for this shop" },
-      { status: 400 }
-    );
+  // 2) Resolve staff: either single staff (uuid) or all active staff for "any"
+  let activeStaffRows: { id: string; name: string }[];
+  if (data.staffId === "any") {
+    const { data: staffRows, error: staffError } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("shop_id", shopId)
+      .eq("active", true)
+      .order("name");
+    if (staffError || !staffRows?.length) {
+      return NextResponse.json(
+        { error: "No active staff for this shop" },
+        { status: 400 }
+      );
+    }
+    activeStaffRows = staffRows;
+  } else {
+    const { data: staffRow, error: staffError } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("id", data.staffId)
+      .eq("shop_id", shopId)
+      .eq("active", true)
+      .maybeSingle();
+    if (staffError) {
+      return NextResponse.json(
+        { error: staffError.message ?? "Failed to fetch staff" },
+        { status: 500 }
+      );
+    }
+    if (!staffRow) {
+      return NextResponse.json(
+        { error: "Staff not found or inactive for this shop" },
+        { status: 400 }
+      );
+    }
+    activeStaffRows = [staffRow];
   }
 
   // 3) Validate service belongs to shop and is active
@@ -186,59 +203,168 @@ export async function POST(request: Request) {
     );
   }
 
-  // 7) Block overlap check
-  const { data: blockingRows, error: blocksError } = await supabase
-    .from("blocks")
-    .select("id")
-    .eq("shop_id", shopId)
-    .eq("staff_id", data.staffId)
-    .lt("start_at", endAt)
-    .gt("end_at", startAt)
-    .limit(1);
+  // 7) Insert booking (with staff resolution for "any")
+  let bookingId!: string;
+  let chosenStaffId!: string;
+  let chosenStaffName!: string;
 
-  if (blocksError) {
-    return NextResponse.json(
-      { error: blocksError.message ?? "Failed to check blocks" },
-      { status: 500 }
-    );
-  }
-  if (blockingRows && blockingRows.length > 0) {
-    return NextResponse.json({ error: "blocked" }, { status: 409 });
-  }
+  if (data.staffId === "any") {
+    const dayLocal = DateTime.fromISO(startAt, { zone: "utc" })
+      .setZone(shop.timezone)
+      .toFormat("yyyy-MM-dd");
 
-  // 8) Insert booking
-  const { data: booking, error: bookingError } = await supabase
-    .from("bookings")
-    .insert({
-      shop_id: shopId,
-      staff_id: data.staffId,
-      service_id: data.serviceId,
-      customer_id: customerId,
-      start_at: startAt,
-      end_at: endAt,
-      status: "confirmed",
-      source: "customer",
-    })
-    .select("id")
-    .single();
+    let inserted = false;
+    for (const staffRow of activeStaffRows) {
+      const { data: availRows, error: availErr } = await supabase.rpc(
+        "rpc_get_availability",
+        {
+          p_shop_slug: data.shopSlug,
+          p_staff_id: staffRow.id,
+          p_service_id: serviceRow.id,
+          p_day_local: dayLocal,
+        }
+      );
+      if (availErr) continue;
 
-  if (bookingError) {
-    const msg = bookingError.message ?? "";
-    const code = (bookingError as { code?: string }).code;
-    const isOverlap =
-      code === "23P01" ||
-      msg.includes("bookings_no_overlap_confirmed") ||
-      msg.includes("conflicts with existing key");
-    if (isOverlap) {
+      const rows = (availRows ?? []) as { start_at?: string; slot_start_at?: string }[];
+      const available = new Set<string>();
+      for (const r of rows) {
+        const val = r.start_at ?? r.slot_start_at;
+        if (val == null) continue;
+        const d = new Date(val);
+        if (!Number.isNaN(d.getTime())) available.add(d.toISOString());
+      }
+      if (!available.has(startAt)) continue;
+
+      const { data: blockingRows } = await supabase
+        .from("blocks")
+        .select("id")
+        .eq("shop_id", shopId)
+        .eq("staff_id", staffRow.id)
+        .lt("start_at", endAt)
+        .gt("end_at", startAt)
+        .limit(1);
+      if (blockingRows && blockingRows.length > 0) continue;
+
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .insert({
+          shop_id: shopId,
+          staff_id: staffRow.id,
+          service_id: data.serviceId,
+          customer_id: customerId,
+          start_at: startAt,
+          end_at: endAt,
+          status: "confirmed",
+          source: "customer",
+        })
+        .select("id")
+        .single();
+
+      if (!bookingError) {
+        bookingId = booking.id;
+        chosenStaffId = staffRow.id;
+        chosenStaffName = staffRow.name;
+        inserted = true;
+        break;
+      }
+      const msg = bookingError.message ?? "";
+      const code = (bookingError as { code?: string }).code;
+      const isOverlap =
+        code === "23P01" ||
+        msg.includes("bookings_no_overlap_confirmed") ||
+        msg.includes("conflicts with existing key");
+      if (!isOverlap) {
+        return NextResponse.json(
+          { error: msg || "Failed to create booking" },
+          { status: 500 }
+        );
+      }
+    }
+    if (!inserted) {
       return NextResponse.json({ error: "slot_taken" }, { status: 409 });
     }
-    return NextResponse.json(
-      { error: msg || "Failed to create booking" },
-      { status: 500 }
-    );
-  }
+  } else {
+    const { data: blockingRows, error: blocksError } = await supabase
+      .from("blocks")
+      .select("id")
+      .eq("shop_id", shopId)
+      .eq("staff_id", data.staffId)
+      .lt("start_at", endAt)
+      .gt("end_at", startAt)
+      .limit(1);
 
-  const bookingId = booking.id;
+    if (blocksError) {
+      return NextResponse.json(
+        { error: blocksError.message ?? "Failed to check blocks" },
+        { status: 500 }
+      );
+    }
+    if (blockingRows && blockingRows.length > 0) {
+      return NextResponse.json({ error: "blocked" }, { status: 409 });
+    }
+
+    const dayLocal = DateTime.fromISO(startAt, { zone: "utc" })
+      .setZone(shop.timezone)
+      .toFormat("yyyy-MM-dd");
+    const { data: availRows, error: availErr } = await supabase.rpc(
+      "rpc_get_availability",
+      {
+        p_shop_slug: data.shopSlug,
+        p_staff_id: data.staffId,
+        p_service_id: serviceRow.id,
+        p_day_local: dayLocal,
+      }
+    );
+    if (!availErr) {
+      const rows = (availRows ?? []) as { start_at?: string; slot_start_at?: string }[];
+      const available = new Set<string>();
+      for (const r of rows) {
+        const val = r.start_at ?? r.slot_start_at;
+        if (val == null) continue;
+        const d = new Date(val);
+        if (!Number.isNaN(d.getTime())) available.add(d.toISOString());
+      }
+      if (!available.has(startAt)) {
+        return NextResponse.json({ error: "slot_taken" }, { status: 409 });
+      }
+    }
+
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .insert({
+        shop_id: shopId,
+        staff_id: data.staffId,
+        service_id: data.serviceId,
+        customer_id: customerId,
+        start_at: startAt,
+        end_at: endAt,
+        status: "confirmed",
+        source: "customer",
+      })
+      .select("id")
+      .single();
+
+    if (bookingError) {
+      const msg = bookingError.message ?? "";
+      const code = (bookingError as { code?: string }).code;
+      const isOverlap =
+        code === "23P01" ||
+        msg.includes("bookings_no_overlap_confirmed") ||
+        msg.includes("conflicts with existing key");
+      if (isOverlap) {
+        return NextResponse.json({ error: "slot_taken" }, { status: 409 });
+      }
+      return NextResponse.json(
+        { error: msg || "Failed to create booking" },
+        { status: 500 }
+      );
+    }
+
+    bookingId = booking.id;
+    chosenStaffId = data.staffId;
+    chosenStaffName = activeStaffRows[0]!.name;
+  }
 
   // 9) Create manage token and upsert manage_tokens
   const rawToken = generateManageToken();
@@ -273,7 +399,7 @@ export async function POST(request: Request) {
     shopName: shop.name,
     shopSlug: data.shopSlug,
     timezone: shop.timezone,
-    staffName: staffRow.name,
+    staffName: chosenStaffName,
     serviceName: serviceRow.name,
     startAt,
     endAt,
@@ -310,7 +436,8 @@ export async function POST(request: Request) {
       shopSlug: data.shopSlug,
       startAt,
       endAt,
-      staffId: data.staffId,
+      staffId: chosenStaffId,
+      staffName: chosenStaffName,
       serviceId: data.serviceId,
       customerId,
       manageToken: rawToken,

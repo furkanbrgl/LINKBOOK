@@ -6,7 +6,7 @@ import { getClientIp, makeKey, rateLimit } from "@/lib/rate-limit/limiter";
 
 const querySchema = z.object({
   shop: z.string().min(1),
-  staffId: z.string().uuid(),
+  staffId: z.union([z.literal("any"), z.string().uuid()]),
   serviceId: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
@@ -75,58 +75,104 @@ export async function GET(request: Request) {
 
   const { id: shopId, timezone: tz } = shopRow;
 
-  // Call RPC
-  const { data: rpcRows, error: rpcError } = await supabase.rpc(
-    "rpc_get_availability",
-    {
-      p_shop_slug: shop,
-      p_staff_id: staffId,
-      p_service_id: serviceId,
-      p_day_local: date,
-    }
-  );
+  let slots: { slot_start_at: string }[];
 
-  if (rpcError) {
-    return NextResponse.json(
-      { error: rpcError.message ?? "Availability lookup failed" },
-      { status: 500 }
-    );
-  }
+  if (staffId === "any") {
+    const { data: staffRows } = await supabase
+      .from("staff")
+      .select("id")
+      .eq("shop_id", shopId)
+      .eq("active", true);
+    const activeStaffIds = (staffRows ?? []).map((r) => r.id);
 
-  const slots = (rpcRows ?? []) as { slot_start_at: string }[];
-
-  // Empty result: distinguish "no slots" from "invalid staff/service"
-  if (slots.length === 0) {
-    const [staffRes, serviceRes] = await Promise.all([
-      supabase
-        .from("staff")
-        .select("id")
-        .eq("id", staffId)
-        .eq("shop_id", shopId)
-        .eq("active", true)
-        .maybeSingle(),
-      supabase
-        .from("services")
-        .select("id")
-        .eq("id", serviceId)
-        .eq("shop_id", shopId)
-        .eq("active", true)
-        .maybeSingle(),
-    ]);
-
-    if (staffRes.error || serviceRes.error) {
+    const serviceCheck = await supabase
+      .from("services")
+      .select("id")
+      .eq("id", serviceId)
+      .eq("shop_id", shopId)
+      .eq("active", true)
+      .maybeSingle();
+    if (serviceCheck.error || !serviceCheck.data) {
       return NextResponse.json(
-        { error: "Failed to validate staff or service" },
-        { status: 500 }
-      );
-    }
-    if (!staffRes.data || !serviceRes.data) {
-      return NextResponse.json(
-        { error: "Invalid staff or service for this shop" },
+        { error: "Invalid service for this shop" },
         { status: 400 }
       );
     }
-    return NextResponse.json({ slots: [] });
+
+    const slotMap = new Map<string, { startAt: string; labelLocal: string }>();
+    for (const sid of activeStaffIds) {
+      const { data: rpcRows } = await supabase.rpc("rpc_get_availability", {
+        p_shop_slug: shop,
+        p_staff_id: sid,
+        p_service_id: serviceId,
+        p_day_local: date,
+      });
+      const rows = (rpcRows ?? []) as { slot_start_at: string }[];
+      for (const row of rows) {
+        const startAt = row.slot_start_at;
+        if (!slotMap.has(startAt)) {
+          slotMap.set(startAt, {
+            startAt,
+            labelLocal: formatShopLocal(startAt, tz, "HH:mm"),
+          });
+        }
+      }
+    }
+    slots = Array.from(slotMap.values())
+      .sort((a, b) => a.startAt.localeCompare(b.startAt))
+      .map((s) => ({ slot_start_at: s.startAt }));
+  } else {
+    const { data: rpcRows, error: rpcError } = await supabase.rpc(
+      "rpc_get_availability",
+      {
+        p_shop_slug: shop,
+        p_staff_id: staffId,
+        p_service_id: serviceId,
+        p_day_local: date,
+      }
+    );
+
+    if (rpcError) {
+      return NextResponse.json(
+        { error: rpcError.message ?? "Availability lookup failed" },
+        { status: 500 }
+      );
+    }
+
+    slots = (rpcRows ?? []) as { slot_start_at: string }[];
+
+    if (slots.length === 0) {
+      const [staffRes, serviceRes] = await Promise.all([
+        supabase
+          .from("staff")
+          .select("id")
+          .eq("id", staffId)
+          .eq("shop_id", shopId)
+          .eq("active", true)
+          .maybeSingle(),
+        supabase
+          .from("services")
+          .select("id")
+          .eq("id", serviceId)
+          .eq("shop_id", shopId)
+          .eq("active", true)
+          .maybeSingle(),
+      ]);
+
+      if (staffRes.error || serviceRes.error) {
+        return NextResponse.json(
+          { error: "Failed to validate staff or service" },
+          { status: 500 }
+        );
+      }
+      if (!staffRes.data || !serviceRes.data) {
+        return NextResponse.json(
+          { error: "Invalid staff or service for this shop" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ slots: [] });
+    }
   }
 
   let result = slots.map((row) => ({
