@@ -3,7 +3,7 @@ import { createServerSupabaseClientWithServiceRole } from "@/lib/db/supabase.ser
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 const STATUS_VALUES = ["pending", "sent", "failed", "cancelled"] as const;
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 200;
 
 export async function GET(request: Request) {

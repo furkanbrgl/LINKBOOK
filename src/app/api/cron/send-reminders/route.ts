@@ -196,30 +196,48 @@ export async function POST(request: Request) {
       }
 
       const eventType = getTemplateEventType(row.event_type, payload);
-      const rendered = renderEmail(eventType, payload, template, branding, appBaseUrl);
+      const email = renderEmail(eventType, payload, template, branding, appBaseUrl);
 
-      const recipient = rendered.to ?? (payload.toEmail as string) ?? (payload.customerEmail as string) ?? (customer as { email?: string | null } | null)?.email ?? null;
+      const toEmail = email.to;
 
-      if (!recipient || recipient.trim() === "") {
+      if (!toEmail) {
         await supabase
           .from("notification_outbox")
           .update({
             status: "failed",
-            last_error: "No email for recipient",
-            attempt_count: row.attempt_count + 1,
-            next_attempt_at: new Date().toISOString(),
+            last_error: "Missing recipient email (toEmail/customerEmail).",
+            attempt_count: (row.attempt_count ?? 0) + 1,
+            updated_at: new Date().toISOString(),
           })
           .eq("id", row.id);
         failed++;
         continue;
       }
 
+      const existingPayload =
+        (row.payload_json as Record<string, unknown> | null) ?? {};
+      const payloadMerge = {
+        ...existingPayload,
+        toEmail: existingPayload.toEmail ?? toEmail,
+        subject: email.subject,
+        text: email.text,
+        html: email.html,
+      };
+
+      await supabase
+        .from("notification_outbox")
+        .update({
+          payload_json: payloadMerge,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+
       try {
         await sendEmail({
-          to: recipient.trim(),
-          subject: rendered.subject,
-          html: rendered.html,
-          text: rendered.text,
+          to: toEmail.trim(),
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
         });
         await supabase
           .from("notification_outbox")

@@ -6,9 +6,10 @@ import { useState } from "react";
 type Props = {
   id: string;
   status: string;
+  onRetry?: () => void;
 };
 
-export function OutboxRetryButton({ id, status }: Props) {
+export function OutboxRetryButton({ id, status, onRetry }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -27,7 +28,7 @@ export function OutboxRetryButton({ id, status }: Props) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok === true) {
         setMessage({ type: "ok", text: "Retry queued" });
-        router.refresh();
+        onRetry?.() ?? router.refresh();
       } else {
         setMessage({
           type: "err",
