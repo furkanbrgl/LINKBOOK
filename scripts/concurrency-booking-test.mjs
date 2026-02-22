@@ -6,11 +6,11 @@
  *   node scripts/concurrency-booking-test.mjs
  *
  * Optional env: BASE_URL, SHOP_SLUG, STAFF_ID, SERVICE_ID, START_AT
- * (default BASE_URL=http://localhost:3001, SHOP_SLUG=demo-barber)
+ * (default BASE_URL=http://localhost:3001, SHOP_SLUG=temp-barber)
  */
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3001";
-const shopSlug = process.env.SHOP_SLUG ?? "demo-barber";
+const shopSlug = process.env.SHOP_SLUG ?? "temp-barber";
 const staffId = process.env.STAFF_ID ?? "";
 const serviceId = process.env.SERVICE_ID ?? "";
 const startAt = process.env.START_AT ?? "";

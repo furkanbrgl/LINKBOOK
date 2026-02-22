@@ -148,13 +148,13 @@ select
 from shops s
 join staff st on st.shop_id = s.id
 join services sv on sv.shop_id = s.id
-where s.slug = 'demo-barber'
+where s.slug = 'temp-barber'
 limit 1;
 
 and 
 
 select * from public.rpc_get_availability(
-  'demo-barber',
+  'temp-barber',
   '<STAFF_UUID>',
   '<SERVICE_UUID>',
   '2026-02-19'
